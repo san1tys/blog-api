@@ -1,0 +1,9 @@
+Django>=5.0,<6.0
+djangorestframework>=3.15
+djangorestframework-simplejwt>=5.3
+python-decouple>=3.8
+Pillow>=10.0
+django-redis>=5.4
+redis>=5.0
+django-ratelimit>=4.1
+drf-nested-routers>=0.94

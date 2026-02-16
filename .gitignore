@@ -1,0 +1,30 @@
+__pycache__/
+*.pyc
+*.pyd
+*.pyo
+*.egg
+
+# Virtual environment
+.venv/
+venv/
+env/
+ENV/
+.env
+.env.*
+
+# Distribution / packaging
+dist/
+build/
+*.whl
+
+# Specific editors (optional)
+.vscode/
+.idea/
+.DS_Store # macOS
+
+# Others
+
+logs/
+media/
+*.sqlite3
+staticfiles/
