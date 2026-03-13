@@ -1,0 +1,7 @@
+{% load i18n %}
+{% blocktrans with email=user.email %}
+Hello, {{ email }}!
+{% endblocktrans %}
+
+{% trans "Welcome to our blog platform." %}
+{% trans "We are glad to have you with us." %}
