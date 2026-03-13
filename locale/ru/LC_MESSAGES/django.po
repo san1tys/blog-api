@@ -1,0 +1,37 @@
+msgid ""
+msgstr ""
+"Language: ru\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+
+msgid "Too many requests. Try again later."
+msgstr "Слишком много запросов. Попробуйте позже."
+
+msgid "Unsupported language."
+msgstr "Неподдерживаемый язык."
+
+msgid "Invalid timezone identifier."
+msgstr "Некорректный идентификатор часового пояса."
+
+msgid "Passwords do not match."
+msgstr "Пароли не совпадают."
+
+msgid "Language preference updated successfully."
+msgstr "Язык успешно обновлён."
+
+msgid "Timezone updated successfully."
+msgstr "Часовой пояс успешно обновлён."
+
+msgid "Authentication required."
+msgstr "Требуется аутентификация."
+
+msgid "Title cannot be empty."
+msgstr "Заголовок не может быть пустым."
+
+msgid "Body cannot be empty."
+msgstr "Текст не может быть пустым."
+
+msgid "Comment body cannot be empty."
+msgstr "Текст комментария не может быть пустым."
+
+msgid "This field is required."
+msgstr "Это поле обязательно."

@@ -1,0 +1,37 @@
+msgid ""
+msgstr ""
+"Language: en\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+
+msgid "Too many requests. Try again later."
+msgstr "Too many requests. Try again later."
+
+msgid "Unsupported language."
+msgstr "Unsupported language."
+
+msgid "Invalid timezone identifier."
+msgstr "Invalid timezone identifier."
+
+msgid "Passwords do not match."
+msgstr "Passwords do not match."
+
+msgid "Language preference updated successfully."
+msgstr "Language preference updated successfully."
+
+msgid "Timezone updated successfully."
+msgstr "Timezone updated successfully."
+
+msgid "Authentication required."
+msgstr "Authentication required."
+
+msgid "Title cannot be empty."
+msgstr "Title cannot be empty."
+
+msgid "Body cannot be empty."
+msgstr "Body cannot be empty."
+
+msgid "Comment body cannot be empty."
+msgstr "Comment body cannot be empty."
+
+msgid "This field is required."
+msgstr "This field is required."
