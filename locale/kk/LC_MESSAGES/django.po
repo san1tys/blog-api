@@ -1,0 +1,37 @@
+msgid ""
+msgstr ""
+"Language: kk\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+
+msgid "Too many requests. Try again later."
+msgstr "Сұраулар тым көп. Кейінірек қайталап көріңіз."
+
+msgid "Unsupported language."
+msgstr "Қолдау көрсетілмейтін тіл."
+
+msgid "Invalid timezone identifier."
+msgstr "Уақыт белдеуінің идентификаторы жарамсыз."
+
+msgid "Passwords do not match."
+msgstr "Құпиясөздер сәйкес келмейді."
+
+msgid "Language preference updated successfully."
+msgstr "Тіл баптауы сәтті жаңартылды."
+
+msgid "Timezone updated successfully."
+msgstr "Уақыт белдеуі сәтті жаңартылды."
+
+msgid "Authentication required."
+msgstr "Аутентификация қажет."
+
+msgid "Title cannot be empty."
+msgstr "Тақырып бос болмауы керек."
+
+msgid "Body cannot be empty."
+msgstr "Мәтін бос болмауы керек."
+
+msgid "Comment body cannot be empty."
+msgstr "Пікір мәтіні бос болмауы керек."
+
+msgid "This field is required."
+msgstr "Бұл өріс міндетті."
