@@ -13,14 +13,14 @@ logger = logging.getLogger("blog")
 
 class Command(BaseCommand):
     help = "Listen to REDIS 'comments'"
-    
+
     async def listen(self) -> None:
         redis = Redis.from_url(REDIS_URL, decode_responses=True)
         pubsub = redis.pubsub()
         await pubsub.subscribe("comments")
 
         self.stdout.write(self.style.SUCCESS("Listening on REDIS channel: comments"))
-        
+
         async for message in pubsub.listen():
             if message.get("type") != "message":
                 continue

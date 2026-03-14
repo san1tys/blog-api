@@ -21,7 +21,12 @@ class Command(BaseCommand):
         for email, first_name, last_name, lang, tz in users_data:
             user, created = User.objects.get_or_create(
                 email=email,
-                defaults={"first_name": first_name, "last_name": last_name, "preferred_language": lang, "timezone": tz},
+                defaults={
+                    "first_name": first_name,
+                    "last_name": last_name,
+                    "preferred_language": lang,
+                    "timezone": tz,
+                },
             )
             if created:
                 user.set_password("Password123")
@@ -42,7 +47,12 @@ class Command(BaseCommand):
             categories.append(category)
 
         tags = []
-        for name, slug in [("django", "django"), ("python", "python"), ("api", "api"), ("redis", "redis")]:
+        for name, slug in [
+            ("django", "django"),
+            ("python", "python"),
+            ("api", "api"),
+            ("redis", "redis"),
+        ]:
             tag, _ = Tag.objects.get_or_create(name=name, slug=slug)
             tags.append(tag)
 
