@@ -3,7 +3,16 @@ from __future__ import annotations
 from pathlib import Path
 import os
 
-from .conf import SECRET_KEY, DEBUG, ALLOWED_HOSTS, REDIS_URL
+from celery.schedules import crontab
+
+from .conf import (
+    SECRET_KEY,
+    DEBUG,
+    ALLOWED_HOSTS,
+    REDIS_URL,
+    CELERY_BROKER_URL,
+    CELERY_RESULT_BACKEND_URL,
+)
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 LOG_DIR = BASE_DIR / "logs"
@@ -80,6 +89,7 @@ LOGGING = {
 }
 
 DJANGO_APPS = [
+    "daphne",  # must be first to override manage.py runserver with Daphne's ASGI server
     "django.contrib.admin",
     "django.contrib.auth",
     "django.contrib.contenttypes",
@@ -89,6 +99,7 @@ DJANGO_APPS = [
 ]
 
 THIRD_PARTY_APPS = [
+    "channels",
     "rest_framework",
     "rest_framework_simplejwt",
     "drf_spectacular",
@@ -99,6 +110,7 @@ PROJECT_APPS = [
     "apps.blog.apps.BlogConfig",
     "apps.core.apps.CoreConfig",
     "apps.stats.apps.StatsConfig",
+    "apps.notifications.apps.NotificationsConfig",
 ]
 
 INSTALLED_APPS = DJANGO_APPS + THIRD_PARTY_APPS + PROJECT_APPS
@@ -188,6 +200,45 @@ SPECTACULAR_SETTINGS = {
     "DESCRIPTION": "Homework 2 API documentation",
     "VERSION": "2.0.0",
     "SERVE_INCLUDE_SCHEMA": False,
+}
+
+CHANNEL_LAYERS = {
+    "default": {
+        "BACKEND": "channels_redis.core.RedisChannelLayer",
+        "CONFIG": {
+            "hosts": [REDIS_URL],
+        },
+    }
+}
+
+
+# Celery
+CELERY_BROKER_URL = CELERY_BROKER_URL
+CELERY_RESULT_BACKEND = CELERY_RESULT_BACKEND_URL  # dedicated DB 3 — isolated from cache (DB 1) and broker (DB 2)
+CELERY_ACCEPT_CONTENT = ["json"]
+CELERY_TASK_SERIALIZER = "json"
+CELERY_RESULT_SERIALIZER = "json"
+CELERY_TIMEZONE = TIME_ZONE
+CELERY_TASK_TRACK_STARTED = True
+CELERY_TASK_TIME_LIMIT = 5 * 60  # hard kill after 5 min
+CELERY_TASK_SOFT_TIME_LIMIT = 4 * 60  # SoftTimeLimitExceeded raised at 4 min
+
+CELERY_BEAT_SCHEDULE = {
+    # Check for scheduled posts every minute.
+    "publish-scheduled-posts": {
+        "task": "blog.publish_scheduled_posts",
+        "schedule": 60,  # seconds
+    },
+    # Delete stale notifications at 03:00 UTC every day.
+    "clear-expired-notifications": {
+        "task": "notifications.clear_expired_notifications",
+        "schedule": crontab(hour=3, minute=0),
+    },
+    # Snapshot daily blog counters at 00:00 UTC every day.
+    "generate-daily-stats": {
+        "task": "stats.generate_daily_stats",
+        "schedule": crontab(hour=0, minute=0),
+    },
 }
 
 CACHES = {

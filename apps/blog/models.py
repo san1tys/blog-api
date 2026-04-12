@@ -73,6 +73,14 @@ class Post(models.Model):
         choices=PostStatus.choices,
         default=PostStatus.DRAFT,
     )
+    publish_at = models.DateTimeField(
+        _("Publish at"),
+        null=True,
+        blank=True,
+        help_text=_(
+            "When set, the Beat task will auto-publish this post at the given time."
+        ),
+    )
     created_at = models.DateTimeField(_("Created at"), auto_now_add=True)
     updated_at = models.DateTimeField(_("Updated at"), auto_now=True)
 
