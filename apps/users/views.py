@@ -17,7 +17,7 @@ from .serializers import (
     UpdateLanguageSerializer,
     UpdateTimezoneSerializer,
 )
-from .services import send_welcome_email
+from .tasks import send_welcome_email
 
 logger = logging.getLogger("users")
 RATE_LIMIT_ERROR = {"detail": _("Too many requests. Try again later.")}
@@ -92,7 +92,7 @@ class RegisterViewSet(viewsets.ViewSet):
         res = serializer.save()
         user = res.pop("instance")
         if user.email:
-            send_welcome_email(user)
+            send_welcome_email.delay(user.id)
 
         logger.info("User registered: %s", res["user"]["email"])
         return Response(res, status=status.HTTP_201_CREATED)

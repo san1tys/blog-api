@@ -82,7 +82,7 @@ else:
 PY
 
 step "Seeding demo data"
-python manage.py seed_demo_data || fail "seeding demo data"
+python manage.py seed || fail "seeding demo data"
 
 echo
 printf 'Project URLs:\n'

@@ -13,7 +13,7 @@ from apps.users.jwt_users import (
     DocumentedTokenRefreshView,
 )
 
-from apps.blog.urls import router as blog_router
+from apps.blog.urls import router as blog_router, urlpatterns as blog_urlpatterns
 
 auth_router = DefaultRouter()
 auth_router.register(r"auth/register", RegisterViewSet, basename="register")
@@ -40,5 +40,7 @@ urlpatterns = [
         name="token_refresh",
     ),
     path("api/", include(blog_router.urls)),
+    path("api/", include(blog_urlpatterns)),
     path("api/", include("apps.stats.urls")),
+    path("api/", include("apps.notifications.urls")),
 ]

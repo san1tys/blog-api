@@ -16,3 +16,9 @@ ALLOWED_HOSTS: list[str] = [
 ]
 
 REDIS_URL: str = _CONFIG("BLOG_REDIS_URL", default="redis://127.0.0.1:6379/1")
+CELERY_BROKER_URL: str = _CONFIG(
+    "BLOG_CELERY_BROKER_URL", default="redis://127.0.0.1:6379/2"
+)
+CELERY_RESULT_BACKEND_URL: str = _CONFIG(
+    "BLOG_CELERY_RESULT_BACKEND_URL", default="redis://127.0.0.1:6379/3"
+)

@@ -4,7 +4,10 @@ import hashlib
 import json
 import logging
 
+from asgiref.sync import async_to_sync, sync_to_async
+from channels.layers import get_channel_layer
 from django.core.cache import cache
+from django.http import StreamingHttpResponse
 from django.shortcuts import get_object_or_404
 from django.utils.decorators import method_decorator
 from django.utils.translation import gettext_lazy as _
@@ -22,12 +25,36 @@ from rest_framework.permissions import IsAuthenticatedOrReadOnly
 from rest_framework.request import Request
 from rest_framework.response import Response
 
+import redis.asyncio as aioredis
+from redis import Redis
+
+from settings.conf import REDIS_URL
+
+from apps.notifications.tasks import process_new_comment
+
 from .models import Comment, Post, PostStatus
 from .permissions import IsOwnerOrReadOnly
 from .serializers import CommentSerializer, PostSerializer
 
 logger = logging.getLogger("blog")
 POSTS_LIST_TTL_SECONDS = 60
+POSTS_PUBLISHED_CHANNEL = "posts:published"
+
+
+def _publish_post_event(post: Post) -> None:
+    """Publish a post-published event to the Redis pub/sub channel."""
+    event = {
+        "post_id": post.id,
+        "title": post.title,
+        "slug": post.slug,
+        "author": post.author_id,
+        "published_at": post.created_at.isoformat(),
+    }
+    Redis.from_url(REDIS_URL).publish(
+        POSTS_PUBLISHED_CHANNEL, json.dumps(event, ensure_ascii=False)
+    )
+
+
 RATE_LIMIT_ERROR = {"detail": _("Too many requests. Try again later.")}
 SUPPORTED_LANGUAGES = ("en", "ru", "kk")
 
@@ -218,11 +245,18 @@ class PostViewSet(viewsets.ModelViewSet):
         serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         post = serializer.save(author=request.user)
+        if post.status == PostStatus.PUBLISHED:
+            _publish_post_event(post)
         invalidate_posts_list_cache()
         return Response(self.get_serializer(post).data, status=status.HTTP_201_CREATED)
 
     def update(self, request: Request, *args, **kwargs) -> Response:
+        instance = self.get_object()
+        was_published = instance.status == PostStatus.PUBLISHED
         resp = super().update(request, *args, **kwargs)
+        instance.refresh_from_db(fields=["status", "created_at"])
+        if instance.status == PostStatus.PUBLISHED and not was_published:
+            _publish_post_event(instance)
         invalidate_posts_list_cache()
         return resp
 
@@ -279,19 +313,157 @@ class PostViewSet(viewsets.ModelViewSet):
         comment = Comment.objects.create(
             post=post, author=request.user, body=serializer.validated_data["body"]
         )
-        from redis import Redis
-        from settings.conf import REDIS_URL
-
-        event = {
+        # Publish to the legacy Redis pub/sub channel (used by listen_comments).
+        redis_event = {
             "type": "comment.created",
             "post_slug": post.slug,
             "author_id": request.user.id,
             "comment_body": comment.body,
         }
         Redis.from_url(REDIS_URL).publish(
-            "comments", json.dumps(event, ensure_ascii=False)
+            "comments", json.dumps(redis_event, ensure_ascii=False)
         )
+
+        # Broadcast to Django Channels group so live WebSocket clients receive it.
+        channel_layer = get_channel_layer()
+        async_to_sync(channel_layer.group_send)(
+            f"comments_{post.slug}",
+            {
+                "type": "comment.created",
+                "payload": {
+                    "comment_id": comment.id,
+                    "author": {"id": request.user.id, "email": request.user.email},
+                    "body": comment.body,
+                    "created_at": comment.created_at.isoformat(),
+                },
+            },
+        )
+
+        # Enqueue async task: create an in-app Notification for the post author.
+        process_new_comment.delay(comment.id)
+
         return Response(
             CommentSerializer(comment, context={"request": request}).data,
             status=status.HTTP_201_CREATED,
         )
+
+
+# ---------------------------------------------------------------------------
+# SSE endpoint: GET /api/posts/stream/
+# ---------------------------------------------------------------------------
+
+_KEEPALIVE_INTERVAL = 15  # seconds between SSE keepalive comments
+
+
+def _format_sse(data: dict) -> str:
+    """Encode a dict as a single SSE message."""
+    return f"data: {json.dumps(data, ensure_ascii=False)}\n\n"
+
+
+@sync_to_async
+def _fetch_posts(after_id: int | None) -> list[dict]:
+    """
+    Return published posts as plain dicts, optionally only those with
+    id > after_id (for incremental polling).
+    """
+    qs = (
+        Post.objects.filter(status=PostStatus.PUBLISHED)
+        .select_related("author")
+        .order_by("id")
+    )
+    if after_id is not None:
+        qs = qs.filter(id__gt=after_id)
+    return [
+        {
+            "post_id": p.id,
+            "title": p.title,
+            "slug": p.slug,
+            "author": p.author_id,
+            "published_at": p.created_at.isoformat(),
+        }
+        for p in qs
+    ]
+
+
+async def _event_stream(request):
+    """
+    Async generator that yields SSE-formatted bytes.
+
+    Flow:
+    1. Send all currently published posts on connect (initial burst).
+    2. Subscribe to the Redis ``posts:published`` pub/sub channel.
+    3. Yield each incoming event immediately as it is published by the
+       viewset (zero polling delay).
+    4. Emit a keepalive comment every _KEEPALIVE_INTERVAL seconds while
+       waiting, to prevent proxy / browser timeouts.
+    """
+    # Initial burst — all existing published posts
+    posts = await _fetch_posts(after_id=None)
+    for post in posts:
+        yield _format_sse(post).encode()
+
+    # Subscribe to the pub/sub channel for real-time events
+    client = aioredis.from_url(REDIS_URL)
+    pubsub = client.pubsub()
+    await pubsub.subscribe(POSTS_PUBLISHED_CHANNEL)
+    try:
+        while True:
+            message = await pubsub.get_message(
+                ignore_subscribe_messages=True,
+                timeout=float(_KEEPALIVE_INTERVAL),
+            )
+            if message is not None:
+                data = json.loads(message["data"])
+                yield _format_sse(data).encode()
+            else:
+                # timeout elapsed with no message — send keepalive
+                yield b": keepalive\n\n"
+    finally:
+        await pubsub.unsubscribe(POSTS_PUBLISHED_CHANNEL)
+        await client.aclose()
+
+
+# ---------------------------------------------------------------------------
+# SSE vs WebSockets — trade-off explanation
+# ---------------------------------------------------------------------------
+# SSE (Server-Sent Events):
+#   - Unidirectional: server → client only. The browser cannot send data back
+#     over the same connection.
+#   - Works over plain HTTP/1.1; no protocol upgrade required.
+#   - Automatic reconnect is built into the browser EventSource API.
+#   - Lower complexity: no channel layer, no handshake, simple streaming view.
+#   - Best for: read-only push streams (news feeds, live dashboards, this
+#     endpoint — broadcasting newly published posts to subscribers).
+#
+# WebSockets:
+#   - Bidirectional: both parties can send messages at any time.
+#   - Requires an HTTP → WS upgrade handshake and a persistent TCP connection.
+#   - Needs a channel layer (Redis) for multi-worker fanout.
+#   - Higher complexity but essential for interactive real-time features
+#     (live comment threads, collaborative editing, chat).
+#   - Used in this project for the live comment feed on individual posts.
+# ---------------------------------------------------------------------------
+
+
+async def post_stream(request):
+    """
+    GET /api/posts/stream/
+
+    Server-Sent Events stream of published posts.  On connect the client
+    receives all currently published posts; new posts are pushed as they
+    appear (polled every 5 s).  A keepalive comment is sent every 15 s.
+
+    Event format::
+
+        data: {"post_id": 1, "title": "Hello", "slug": "hello",
+               "author": 2, "published_at": "2026-04-12T10:00:00+00:00"}
+
+    No authentication required (mirrors the public posts list endpoint).
+    """
+    response = StreamingHttpResponse(
+        _event_stream(request),
+        content_type="text/event-stream",
+    )
+    response["Cache-Control"] = "no-cache"
+    response["X-Accel-Buffering"] = "no"  # disable nginx buffering
+    return response

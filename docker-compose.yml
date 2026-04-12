@@ -1,0 +1,74 @@
+services:
+  redis:
+    image: redis:7-alpine
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+    restart: unless-stopped
+
+  web:
+    build: .
+    env_file: settings/.env
+    ports:
+      - "8000:8000"
+    volumes:
+      - static_files:/app/staticfiles
+      - media_files:/app/media
+      - logs:/app/logs
+      - sqlite_data:/app/data
+    depends_on:
+      redis:
+        condition: service_healthy
+    restart: unless-stopped
+
+  celery_worker:
+    build: .
+    entrypoint: []
+    command: ["celery", "-A", "settings", "worker", "-l", "info"]
+    env_file: settings/.env
+    volumes:
+      - logs:/app/logs
+    depends_on:
+      redis:
+        condition: service_healthy
+      web:
+        condition: service_started
+    restart: unless-stopped
+
+  celery_beat:
+    build: .
+    entrypoint: []
+    command: ["celery", "-A", "settings", "beat", "-l", "info"]
+    env_file: settings/.env
+    volumes:
+      - logs:/app/logs
+    depends_on:
+      redis:
+        condition: service_healthy
+      web:
+        condition: service_started
+    restart: unless-stopped
+
+  flower:
+    build: .
+    entrypoint: []
+    command: ["celery", "-A", "settings", "flower", "--port=5555",
+              "--basic-auth=${FLOWER_BASIC_AUTH}"]
+    env_file: settings/.env
+    ports:
+      - "5555:5555"
+    depends_on:
+      redis:
+        condition: service_healthy
+    restart: unless-stopped
+
+volumes:
+  redis_data:
+  static_files:
+  media_files:
+  logs:
+  sqlite_data:
